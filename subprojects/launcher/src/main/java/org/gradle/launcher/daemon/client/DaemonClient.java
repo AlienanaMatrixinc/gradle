@@ -139,9 +139,9 @@ public class DaemonClient implements BuildActionExecuter<BuildActionParameters, 
         LOGGER.debug("Executing build {} in daemon client {pid={}}", buildId, processEnvironment.maybeGetPid());
 
         int saneNumberOfAttempts = 100; //is it sane enough?
-
-        for (int i = 1; i < saneNumberOfAttempts; i++) {
-            final DaemonClientConnection connection = connector.connect(compatibilitySpec);
+        NewDaemonTracker newDaemonTracker = new NewDaemonTracker();
+        for (int i = 1; i < saneNumberOfAttempts && !newDaemonTracker.daemonStarted; i++) {
+            final DaemonClientConnection connection = connector.connect(compatibilitySpec, newDaemonTracker);
             try {
                 Build build = new Build(buildId, connection.getDaemon().getToken(), action, requestContext.getClient(), requestContext.getStartTime(), requestContext.isInteractive(), parameters);
                 return executeBuild(build, connection, requestContext.getCancellationToken(), requestContext.getEventConsumer());
@@ -281,5 +281,14 @@ public class DaemonClient implements BuildActionExecuter<BuildActionParameters, 
         return new IllegalStateException(String.format(
             "Received invalid response from the daemon: '%s' is a result of a type we don't have a strategy to handle. "
                 + "Earlier, '%s' request was sent to the daemon. Diagnostics:\n%s", response, command, diagnosticsMessage));
+    }
+
+    private static class NewDaemonTracker implements DaemonConnectorListener {
+        private boolean daemonStarted = false;
+
+        @Override
+        public void newDaemonStarted() {
+            daemonStarted = true;
+        }
     }
 }
